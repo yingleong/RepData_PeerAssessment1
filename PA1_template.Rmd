@@ -8,18 +8,69 @@ output:
 
 ## Loading and preprocessing the data
 
+```{r}
+library("ggplot2")
+temp<-tempfile()
+download.file("https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2Factivity.zip", temp)
 
+```
 
 ## What is mean total number of steps taken per day?
 
+```{r}
+activities<- read.csv(unz(temp,"activity.csv"))
+totalStepsPerDay<-aggregate(activities$steps, by=list(activities$date),FUN=sum)
+totalStepsPerDay$date<-strptime(totalStepsPerDay$Group.1,"%Y-%m-%d")
+mx<-mean(totalStepsPerDay$x,na.rm=T)
+qplot( x, data=totalStepsPerDay, xlab="Steps", na.rm=T, bins=50)+geom_histogram(na.rm=T,bins=50)+geom_vline(aes(xintercept=mx),   color="red", linetype="dashed", size=1)+geom_text(aes(x=mx, label=paste("\nMeans=",round(mx,digits=0)), y=4), colour="red", angle=90)
 
+```
 
 ## What is the average daily activity pattern?
+```{r}
+
+totalStepsPerIntervalBlock<-aggregate(activities$steps, by=list(activities$interval), FUN=sum, na.rm=T, na.action=NULL)
+colnames(totalStepsPerIntervalBlock)<-c("Intervals", "Steps")
+mx<-totalStepsPerIntervalBlock[which.max(totalStepsPerIntervalBlock$Steps),]
+
+ggplot(totalStepsPerIntervalBlock, aes(Intervals, Steps))+geom_line()+geom_vline(aes(xintercept=mx$Intervals),   color="red", linetype="dashed", size=1)+geom_text(aes(x=mx$Intervals, label=paste("\nMax at interval ",mx$Intervals," = ",mx$Steps, " steps" ), y=3000), colour="red", angle=90)
+
+```
 
 
 
 ## Imputing missing values
+```{r}
+sum(is.na(activities$steps))
+
+meanStepsPerIntervalBlock<-aggregate(activities$steps,by=list(activities$interval), FUN=mean,na.rm=T, na.action=NULL)
+colnames(meanStepsPerIntervalBlock)<-c("Intervals", "Steps")
+meanStepsPerIntervalBlock$roundMeanSteps<-round(meanStepsPerIntervalBlock$Steps, digits=0)
+
+cleanUpActivities<-activities
+for(i in 1:nrow(cleanUpActivities)){
+  if(is.na(cleanUpActivities[i,"steps"])){
+    cleanUpActivities[i,"steps"]<-meanStepsPerIntervalBlock[meanStepsPerIntervalBlock$Intervals==cleanUpActivities[i, "interval"],"roundMeanSteps"]
+  }
+}
 
 
+newTotalStepsPerDay<-aggregate(cleanUpActivities$steps, by=list(cleanUpActivities$date),FUN=sum)
+newTotalStepsPerDay$date<-strptime(newTotalStepsPerDay$Group.1,"%Y-%m-%d")
+mx<-mean(newTotalStepsPerDay$x,na.rm=T)
+qplot( x, data=newTotalStepsPerDay, xlab="Steps", na.rm=T, bins=50)+geom_histogram(na.rm=T,bins=50)+geom_vline(aes(xintercept=mx),   color="red", linetype="dashed", size=1)+geom_text(aes(x=mx, label=paste("\nMeans=",round(mx,digits=0)), y=4), colour="red", angle=90)
+
+```
 
 ## Are there differences in activity patterns between weekdays and weekends?
+```{r}
+activities$weekstate<-ifelse(weekdays(as.Date(activities$date),abbr=T)!="Sat"&weekdays(as.Date(activities$date),abbr=T)!="Sun","weekday","weekend")
+
+
+newTotalStepsPerIntervalBlock<-aggregate(activities$steps, by=list(activities$interval, activities$weekstate), FUN=sum, na.rm=T, na.action=NULL)
+
+colnames(newTotalStepsPerIntervalBlock)<-c("interval","weekstate", "steps")
+
+
+ggplot(newTotalStepsPerIntervalBlock,aes(interval, steps))+geom_line(color="blue")+facet_wrap(~weekstate, ncol=1)+labs(y="Number of steps", x="Interval")
+#+theme(strip.text=element_text(angle=180))
